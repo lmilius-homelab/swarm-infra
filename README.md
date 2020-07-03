@@ -8,5 +8,5 @@ The environment variables can be filled in via the .env files. For a template, y
 
 ### Deploy
 ```bash
-docker-compose up -d
+docker stack deploy -c stack.yml swarm-infra
 ```
