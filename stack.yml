@@ -34,6 +34,8 @@ services:
     image: thomseddon/traefik-forward-auth:2
     networks:
     - proxy-overlay
+    ports:
+      - 4181
     deploy:
       restart_policy:
         condition: on-failure
@@ -63,6 +65,8 @@ services:
       - "traefik.http.routers.reg-internal.rule=Host(`registry.lukemilius.com`)"
       - "traefik.http.routers.reg-internal.middlewares=internal_only@file"
       - "traefik.http.routers.reg-internal.tls=true"
+    ports:
+    - 5000
     volumes:
     - registry:/var/lib/registry
     networks:
@@ -86,6 +90,8 @@ services:
     volumes:
       - portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 9000
     networks:
       - proxy-overlay
 
@@ -96,6 +102,8 @@ services:
     env_file:
       - .env.drone
       - .env.rpc_secret
+    ports:
+      - 80
     deploy:
       restart_policy:
         condition: on-failure
@@ -116,6 +124,8 @@ services:
     env_file:
       - .env.runner
       - .env.rpc_secret
+    ports:
+      - 3000
     deploy:
       restart_policy:
         condition: on-failure
