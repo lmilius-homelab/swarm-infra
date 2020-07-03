@@ -1,0 +1,138 @@
+version: '3.7'
+services:
+  traefik:
+    image: traefik:v2.2
+    ports:
+    - 80:80
+    - 443:443
+    - 2003:2003
+    - 3306:3306
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ./traefik.yaml:/etc/traefik/traefik.yaml
+    - letsencrypt:/letsencrypt
+    networks:
+    - proxy-overlay
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.traefik.entrypoints=websecure"
+        - "traefik.http.routers.traefik.rule=Host(`proxy.lukemilius.com`)"
+        - "traefik.http.routers.traefik.tls=true"
+        - "traefik.http.routers.traefik.tls.certresolver=cloudflare"
+        - "traefik.http.routers.traefik.tls.domains[0].main=lukemilius.com"
+        - "traefik.http.routers.traefik.tls.domains[0].sans=*.lukemilius.com"
+        - "traefik.http.routers.traefik.service=api@internal"
+        - "traefik.http.routers.traefik.middlewares=tfa_verify@file"
+      restart_policy:
+        condition: on-failure
+    environment:
+      CF_API_EMAIL: ${CF_API_EMAIL}
+      CF_API_KEY: ${CF_API_KEY}
+
+  forward-auth:
+    image: thomseddon/traefik-forward-auth:2
+    networks:
+    - proxy
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.forward-auth.entrypoints=websecure"
+      - "traefik.http.routers.forward-auth.rule=Host(`auth.lukemilius.com`)"
+      - "traefik.http.routers.forward-auth.tls=true"
+      - "traefik.http.routers.forward-auth.middlewares=tfa_verify@file"
+    environment:
+      COOKIE_DOMAIN: lukemilius.com
+      AUTH_HOST: auth.lukemilius.com
+      WHITELIST: ${WHITELIST} # Whitelisted email addresses
+      SECRET: ${COOKIE_SECRET}
+      PROVIDERS_GOOGLE_CLIENT_ID: ${PROVIDERS_GOOGLE_CLIENT_ID}
+      PROVIDERS_GOOGLE_CLIENT_SECRET: ${PROVIDERS_GOOGLE_CLIENT_SECRET}
+#      LOG_LEVEL: debug
+
+  registry:
+    image: registry:2
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.reg-internal.entrypoints=websecure"
+      - "traefik.http.routers.reg-internal.rule=Host(`registry.lukemilius.com`)"
+      - "traefik.http.routers.reg-internal.middlewares=internal_only@file"
+      - "traefik.http.routers.reg-internal.tls=true"
+    volumes:
+    - registry:/var/lib/registry
+    networks:
+    - proxy-overlay
+
+  portainer:
+    image: portainer/portainer:latest
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.portainer.entrypoints=websecure"
+        - "traefik.http.routers.portainer.rule=Host(`portainer.lukemilius.com`)"
+        - "traefik.http.routers.portainer.middlewares=tfa_verify@file"
+        - "traefik.http.routers.portainer.tls=true"
+        - "traefik.http.routers.port-internal.entrypoints=websecure"
+        - "traefik.http.routers.port-internal.rule=Host(`portainer-int.lukemilius.com`)"
+        - "traefik.http.routers.port-internal.middlewares=internal_only@file"
+        - "traefik.http.routers.port-internal.tls=true"
+    volumes:
+      - portainer:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - proxy-overlay
+
+  drone:
+    image: drone/drone:1
+    volumes:
+      - drone:/data
+    env_file:
+      - .env.drone
+      - .env.rpc_secret
+    expose:
+      - 80
+    deploy:
+      restart_policy:
+        condition: on-failure
+      labels:
+        - "traefik.enable=true"
+        - "traefik.http.routers.drone.entrypoints=websecure"
+        - "traefik.http.routers.drone.rule=Host(`drone.lukemilius.com`)"
+        - "traefik.http.routers.drone.tls=true"
+        - "traefik.docker.network=proxy-overlay"
+    networks:
+      - drone
+      - proxy-overlay
+
+  runner-01:
+    image: drone/drone-runner-docker:1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env.runner
+      - .env.rpc_secret
+    deploy:
+      restart_policy:
+        condition: on-failure
+    depends_on:
+      - drone
+    networks:
+      - drone
+
+networks:
+  proxy-overlay:
+    external: true
+  drone:
+
+volumes:
+  letsencrypt:
+  portainer:
+  registry:
+  drone:
