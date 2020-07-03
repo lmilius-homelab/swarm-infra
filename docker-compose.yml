@@ -33,7 +33,7 @@ services:
   forward-auth:
     image: thomseddon/traefik-forward-auth:2
     networks:
-    - proxy
+    - proxy-overlay
     deploy:
       restart_policy:
         condition: on-failure
@@ -96,8 +96,6 @@ services:
     env_file:
       - .env.drone
       - .env.rpc_secret
-    expose:
-      - 80
     deploy:
       restart_policy:
         condition: on-failure
