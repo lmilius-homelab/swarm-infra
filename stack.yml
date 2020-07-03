@@ -24,6 +24,7 @@ services:
         - "traefik.http.routers.traefik.tls.domains[0].sans=*.lukemilius.com"
         - "traefik.http.routers.traefik.service=api@internal"
         - "traefik.http.routers.traefik.middlewares=tfa_verify@file"
+        - "traefik.http.services.traefik.loadbalancer.server.port=443"
       restart_policy:
         condition: on-failure
     environment:
